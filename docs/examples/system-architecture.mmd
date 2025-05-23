@@ -1,0 +1,95 @@
+graph TD
+    %% 微信电商小程序系统架构图
+    
+    subgraph "用户接入层"
+        A1["微信小程序端<br/>商品浏览、购物下单"]
+        A2["商家管理端<br/>商品管理、订单处理"]
+        A3["平台管理端<br/>用户管理、系统配置"]
+    end
+    
+    subgraph "应用服务层"
+        B1["用户服务<br/>注册登录、权限管理"]
+        B2["商品服务<br/>商品展示、库存管理"]
+        B3["订单服务<br/>订单创建、状态跟踪"]
+        B4["支付服务<br/>支付集成、交易记录"]
+        B5["推荐服务<br/>智能推荐、个性化"]
+        B6["搜索服务<br/>商品搜索、筛选排序"]
+        B7["营销服务<br/>优惠券、促销活动"]
+        B8["消息服务<br/>站内消息、推送通知"]
+    end
+    
+    subgraph "服务支撑层"
+        C1["API网关<br/>接口路由、限流熔断"]
+        C2["配置中心<br/>配置管理、动态更新"]
+        C3["消息队列<br/>异步处理、削峰填谷"]
+        C4["监控告警<br/>性能监控、日志收集"]
+    end
+    
+    subgraph "数据存储层"
+        D1["MySQL主从<br/>用户数据、订单数据"]
+        D2["Redis集群<br/>缓存数据、会话存储"]
+        D3["对象存储<br/>商品图片、用户头像"]
+        D4["CDN加速<br/>静态资源、图片加速"]
+    end
+    
+    subgraph "基础设施层"
+        E1["容器编排<br/>Kubernetes、Docker"]
+        E2["负载均衡<br/>流量分发、健康检查"]
+        E3["云服务<br/>弹性计算、自动扩缩容"]
+    end
+    
+    %% 连接关系
+    A1 --> C1
+    A2 --> C1
+    A3 --> C1
+    
+    C1 --> B1
+    C1 --> B2
+    C1 --> B3
+    C1 --> B4
+    C1 --> B5
+    C1 --> B6
+    C1 --> B7
+    C1 --> B8
+    
+    B1 --> D1
+    B2 --> D1
+    B3 --> D1
+    B4 --> D1
+    
+    B1 --> D2
+    B2 --> D2
+    B3 --> D2
+    B4 --> D2
+    
+    B2 --> D3
+    B8 --> C3
+    
+    C2 --> B1
+    C2 --> B2
+    C2 --> B3
+    C2 --> B4
+    
+    C4 --> B1
+    C4 --> B2
+    C4 --> B3
+    C4 --> B4
+    
+    D1 --> E1
+    D2 --> E1
+    C1 --> E2
+    E1 --> E3
+    E2 --> E3
+    
+    %% 样式定义
+    classDef userLayer fill:#E3F2FD,stroke:#2196F3,stroke-width:2px,color:#1976D2
+    classDef serviceLayer fill:#E8F5E8,stroke:#4CAF50,stroke-width:2px,color:#388E3C
+    classDef supportLayer fill:#FFF3E0,stroke:#FF9800,stroke-width:2px,color:#F57C00
+    classDef dataLayer fill:#F3E5F5,stroke:#9C27B0,stroke-width:2px,color:#7B1FA2
+    classDef infraLayer fill:#ECEFF1,stroke:#607D8B,stroke-width:2px,color:#455A64
+    
+    class A1,A2,A3 userLayer
+    class B1,B2,B3,B4,B5,B6,B7,B8 serviceLayer
+    class C1,C2,C3,C4 supportLayer
+    class D1,D2,D3,D4 dataLayer
+    class E1,E2,E3 infraLayer

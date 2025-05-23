@@ -1,0 +1,409 @@
+// 微信电商小程序数据库设计
+// 使用DBML语法，可在 https://dbdiagram.io/ 中渲染
+
+Project wechat_ecommerce {
+  database_type: 'MySQL'
+  Note: '''
+    # 微信电商小程序数据库设计
+    
+    ## 设计原则
+    - 数据一致性与查询性能平衡
+    - 支持完整的电商业务生命周期
+    - 预留扩展性，支持业务发展
+    
+    ## 业务域划分
+    - 用户域：用户信息、地址管理
+    - 商品域：分类、商品、SKU管理
+    - 订单域：订单、订单明细
+    - 支付域：支付记录、退款记录
+    - 营销域：优惠券、活动管理
+    - 物流域：物流公司、物流跟踪
+    - 库存域：库存变更日志
+    - 系统域：系统配置、操作日志
+  '''
+}
+
+// 用户域 (User Domain)
+Table users {
+  id bigint [pk, increment]
+  openid varchar(64) [unique, not null]
+  unionid varchar(64) [unique]
+  nickname varchar(50)
+  avatar_url varchar(255)
+  gender tinyint [note: '1男2女0未知']
+  phone varchar(20) [unique]
+  email varchar(100)
+  status tinyint [default: 1, note: '1正常2禁用']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    openid [unique]
+    phone [unique]
+    (status, created_at)
+  }
+  
+  Note: '用户基础信息表，存储微信用户核心数据'
+}
+
+Table user_addresses {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id, not null]
+  receiver_name varchar(50) [not null]
+  receiver_phone varchar(20) [not null]
+  province varchar(20) [not null]
+  city varchar(20) [not null]
+  district varchar(20) [not null]
+  detail_address varchar(200) [not null]
+  is_default tinyint [default: 0, note: '0否1是']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    user_id
+    (user_id, is_default)
+  }
+  
+  Note: '用户收货地址表，支持多地址管理'
+}
+
+Table user_profiles {
+  id bigint [pk, increment]
+  user_id bigint [ref: - users.id, not null]
+  birthday date
+  occupation varchar(50)
+  interests json [note: '兴趣标签JSON数组']
+  preferences json [note: '偏好设置JSON']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  Note: '用户扩展信息表，存储个性化数据'
+}
+
+// 商品域 (Product Domain)
+Table categories {
+  id bigint [pk, increment]
+  parent_id bigint [default: 0, note: '父分类ID，0为顶级分类']
+  name varchar(50) [not null]
+  level tinyint [not null, note: '分类层级，1-3级']
+  sort_order int [default: 0, note: '排序权重']
+  icon_url varchar(255)
+  status tinyint [default: 1, note: '1启用0禁用']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    parent_id
+    (status, sort_order)
+    level
+  }
+  
+  Note: '商品分类表，支持三级分类结构'
+}
+
+Table merchants {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  contact_person varchar(50)
+  contact_phone varchar(20)
+  business_license varchar(100) [note: '营业执照号']
+  status tinyint [default: 1, note: '1正常2禁用']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    status
+    business_license [unique]
+  }
+  
+  Note: '商家信息表，支持多商家入驻'
+}
+
+Table products {
+  id bigint [pk, increment]
+  category_id bigint [ref: > categories.id, not null]
+  merchant_id bigint [ref: > merchants.id, not null]
+  name varchar(100) [not null]
+  subtitle varchar(200)
+  description text
+  main_image varchar(255)
+  images json [note: '商品图片JSON数组']
+  price decimal(10,2) [not null, note: '销售价格']
+  original_price decimal(10,2) [note: '原价']
+  stock int [default: 0, note: '总库存']
+  sales_count int [default: 0, note: '销量统计']
+  status tinyint [default: 1, note: '1上架2下架3删除']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    category_id
+    merchant_id
+    (status, created_at)
+    (status, sales_count)
+    name [type: fulltext]
+  }
+  
+  Note: '商品主表，存储商品核心信息'
+}
+
+Table product_skus {
+  id bigint [pk, increment]
+  product_id bigint [ref: > products.id, not null]
+  sku_code varchar(50) [unique, not null]
+  attributes json [note: '规格属性JSON，如{"颜色":"红色","尺寸":"L"}']
+  price decimal(10,2) [not null]
+  stock int [default: 0]
+  image_url varchar(255)
+  status tinyint [default: 1, note: '1启用0禁用']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    product_id
+    sku_code [unique]
+    (product_id, status)
+  }
+  
+  Note: 'SKU表，支持商品多规格管理'
+}
+
+// 订单域 (Order Domain)
+Table orders {
+  id bigint [pk, increment]
+  order_no varchar(32) [unique, not null]
+  user_id bigint [ref: > users.id, not null]
+  merchant_id bigint [ref: > merchants.id, not null]
+  total_amount decimal(10,2) [not null, note: '订单总金额']
+  discount_amount decimal(10,2) [default: 0, note: '优惠金额']
+  freight_amount decimal(10,2) [default: 0, note: '运费']
+  pay_amount decimal(10,2) [not null, note: '实付金额']
+  pay_type tinyint [note: '1微信支付2支付宝']
+  status tinyint [default: 1, note: '1待付款2已付款3已发货4已完成5已取消']
+  receiver_info json [note: '收货信息JSON']
+  remark varchar(500) [note: '订单备注']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  paid_at timestamp [null]
+  shipped_at timestamp [null]
+  completed_at timestamp [null]
+  
+  indexes {
+    order_no [unique]
+    user_id
+    merchant_id
+    (user_id, status)
+    (status, created_at)
+    created_at
+  }
+  
+  Note: '订单主表，存储订单核心信息'
+}
+
+Table order_items {
+  id bigint [pk, increment]
+  order_id bigint [ref: > orders.id, not null]
+  product_id bigint [ref: > products.id, not null]
+  sku_id bigint [ref: > product_skus.id, not null]
+  product_name varchar(100) [not null, note: '商品名称快照']
+  sku_attributes varchar(200) [note: 'SKU属性快照']
+  price decimal(10,2) [not null, note: '商品单价快照']
+  quantity int [not null, note: '购买数量']
+  total_amount decimal(10,2) [not null, note: '小计金额']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    order_id
+    product_id
+    sku_id
+  }
+  
+  Note: '订单明细表，存储订单商品信息快照'
+}
+
+// 支付域 (Payment Domain)
+Table payments {
+  id bigint [pk, increment]
+  payment_no varchar(32) [unique, not null]
+  order_id bigint [ref: - orders.id, not null]
+  user_id bigint [ref: > users.id, not null]
+  amount decimal(10,2) [not null]
+  pay_type tinyint [not null, note: '1微信支付2支付宝']
+  pay_channel varchar(20) [note: '支付渠道']
+  transaction_id varchar(64) [note: '第三方交易号']
+  status tinyint [default: 1, note: '1待支付2支付成功3支付失败4已退款']
+  paid_at timestamp [null]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    payment_no [unique]
+    order_id
+    user_id
+    transaction_id
+    (status, created_at)
+  }
+  
+  Note: '支付记录表，存储支付交易信息'
+}
+
+Table payment_refunds {
+  id bigint [pk, increment]
+  refund_no varchar(32) [unique, not null]
+  payment_id bigint [ref: > payments.id, not null]
+  order_id bigint [ref: > orders.id, not null]
+  refund_amount decimal(10,2) [not null]
+  refund_reason varchar(200)
+  status tinyint [default: 1, note: '1申请中2退款成功3退款失败']
+  refunded_at timestamp [null]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    refund_no [unique]
+    payment_id
+    order_id
+    (status, created_at)
+  }
+  
+  Note: '退款记录表，支持订单退款管理'
+}
+
+// 营销域 (Marketing Domain)
+Table coupons {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  type tinyint [not null, note: '1满减2折扣3免邮']
+  discount_value decimal(10,2) [not null, note: '优惠值']
+  min_amount decimal(10,2) [default: 0, note: '最低消费金额']
+  total_count int [not null, note: '发放总数']
+  used_count int [default: 0, note: '已使用数量']
+  start_time timestamp [not null]
+  end_time timestamp [not null]
+  status tinyint [default: 1, note: '1有效0无效']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    (status, start_time, end_time)
+    type
+  }
+  
+  Note: '优惠券模板表，定义优惠券规则'
+}
+
+Table user_coupons {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id, not null]
+  coupon_id bigint [ref: > coupons.id, not null]
+  order_id bigint [ref: > orders.id, null]
+  status tinyint [default: 1, note: '1未使用2已使用3已过期']
+  received_at timestamp [default: `CURRENT_TIMESTAMP`]
+  used_at timestamp [null]
+  
+  indexes {
+    user_id
+    coupon_id
+    (user_id, status)
+    order_id
+  }
+  
+  Note: '用户优惠券表，记录用户领取和使用情况'
+}
+
+// 物流域 (Logistics Domain)
+Table logistics_companies {
+  id bigint [pk, increment]
+  name varchar(50) [not null]
+  code varchar(20) [unique, not null]
+  api_url varchar(255)
+  status tinyint [default: 1, note: '1启用0禁用']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  Note: '物流公司表，支持多物流商接入'
+}
+
+Table order_logistics {
+  id bigint [pk, increment]
+  order_id bigint [ref: - orders.id, not null]
+  logistics_company_id bigint [ref: > logistics_companies.id, not null]
+  tracking_no varchar(50) [not null]
+  status tinyint [default: 1, note: '1已发货2运输中3已签收']
+  shipped_at timestamp [default: `CURRENT_TIMESTAMP`]
+  delivered_at timestamp [null]
+  
+  indexes {
+    order_id [unique]
+    tracking_no
+    logistics_company_id
+  }
+  
+  Note: '订单物流表，记录订单发货信息'
+}
+
+Table logistics_traces {
+  id bigint [pk, increment]
+  order_logistics_id bigint [ref: > order_logistics.id, not null]
+  trace_time timestamp [not null]
+  trace_info varchar(200) [not null]
+  location varchar(100)
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    order_logistics_id
+    trace_time
+  }
+  
+  Note: '物流轨迹表，记录包裹运输轨迹'
+}
+
+// 库存域 (Inventory Domain)
+Table inventory_logs {
+  id bigint [pk, increment]
+  sku_id bigint [ref: > product_skus.id, not null]
+  order_id bigint [ref: > orders.id, null]
+  type tinyint [not null, note: '1入库2出库3锁定4释放']
+  quantity int [not null, note: '变更数量，正数为增加，负数为减少']
+  before_stock int [not null, note: '变更前库存']
+  after_stock int [not null, note: '变更后库存']
+  remark varchar(200)
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    sku_id
+    order_id
+    (sku_id, created_at)
+    type
+  }
+  
+  Note: '库存变更日志表，记录所有库存操作'
+}
+
+// 系统域 (System Domain)
+Table system_configs {
+  id bigint [pk, increment]
+  config_key varchar(100) [unique, not null]
+  config_value text [not null]
+  description varchar(200)
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    config_key [unique]
+  }
+  
+  Note: '系统配置表，存储系统参数'
+}
+
+Table operation_logs {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id, null]
+  operation_type varchar(50) [not null]
+  operation_desc varchar(200)
+  request_data json
+  response_data json
+  ip_address varchar(45)
+  user_agent varchar(500)
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    user_id
+    operation_type
+    created_at
+    ip_address
+  }
+  
+  Note: '操作日志表，记录用户关键操作'
+}

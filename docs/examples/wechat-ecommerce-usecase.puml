@@ -1,0 +1,94 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 10
+skinparam minClassWidth 180
+skinparam wrapWidth 150
+
+title 微信电商小程序用例图
+
+' 定义参与者
+actor "普通用户" as User #2196F3
+actor "商家用户" as Merchant #2196F3
+actor "系统管理员" as Admin #2196F3
+
+' 定义外部系统
+actor "微信支付系统" as WeChatPay #FF9800
+actor "物流系统" as Logistics #FF9800
+
+' 定义系统边界
+rectangle "微信电商小程序系统" as System #4CAF50 {
+  
+  ' 用户基础功能
+  usecase "用户注册" as UC01 #9C27B0
+  usecase "用户登录" as UC02 #9C27B0
+  usecase "个人信息管理" as UC03 #9C27B0
+  
+  ' 商品相关功能
+  usecase "浏览商品" as UC04 #9C27B0
+  usecase "搜索商品" as UC05 #9C27B0
+  usecase "查看商品详情" as UC06 #9C27B0
+  
+  ' 交易相关功能
+  usecase "购物车管理" as UC07 #9C27B0
+  usecase "下单" as UC08 #9C27B0
+  usecase "订单支付" as UC09 #9C27B0
+  usecase "订单管理" as UC10 #9C27B0
+  
+  ' 商家功能
+  usecase "商品管理" as UC11 #9C27B0
+  usecase "订单处理" as UC12 #9C27B0
+  usecase "数据分析" as UC13 #9C27B0
+  
+  ' 系统管理功能
+  usecase "用户管理" as UC14 #9C27B0
+  usecase "系统配置" as UC15 #9C27B0
+  usecase "数据统计" as UC16 #9C27B0
+  
+  ' 支付相关
+  usecase "支付处理" as UC17 #9C27B0
+  usecase "退款处理" as UC18 #9C27B0
+  
+  ' 物流相关
+  usecase "物流跟踪" as UC19 #9C27B0
+}
+
+' 用户关联
+User --> UC01
+User --> UC02
+User --> UC03
+User --> UC04
+User --> UC05
+User --> UC06
+User --> UC07
+User --> UC08
+User --> UC09
+User --> UC10
+User --> UC19
+
+' 商家关联
+Merchant --> UC02
+Merchant --> UC03
+Merchant --> UC11
+Merchant --> UC12
+Merchant --> UC13
+
+' 管理员关联
+Admin --> UC02
+Admin --> UC14
+Admin --> UC15
+Admin --> UC16
+
+' 外部系统关联
+UC09 --> WeChatPay : 调用支付接口
+UC17 --> WeChatPay : 处理支付
+UC18 --> WeChatPay : 处理退款
+UC19 --> Logistics : 查询物流信息
+
+' 用例关系
+UC08 ..> UC02 : <<include>>
+UC09 ..> UC08 : <<include>>
+UC10 ..> UC02 : <<include>>
+UC07 ..> UC02 : <<include>>
+
+@enduml
